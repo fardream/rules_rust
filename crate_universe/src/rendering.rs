@@ -658,13 +658,18 @@ impl Renderer {
     }
 
     fn crate_label(&self, name: &str, version: &str, target: &str) -> String {
-        sanitize_repository_name(&render_crate_bazel_label(
+        let unsanitized_name = render_crate_bazel_label(
             &self.config.crate_label_template,
             &self.config.repository_name,
             name,
             version,
             target,
-        ))
+        );
+        if unsanitized_name.starts_with("//") {
+            unsanitized_name
+        } else {
+            sanitize_repository_name(&unsanitized_name)
+        }
     }
 }
 
