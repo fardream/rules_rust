@@ -148,7 +148,7 @@ def _rust_library_common(ctx, crate_type):
     crate_root = getattr(ctx.file, "crate_root", None)
     if not crate_root:
         crate_root = crate_root_src(ctx.attr.name, ctx.files.srcs, crate_type)
-    srcs, crate_root = transform_sources(ctx, ctx.files.srcs, crate_root)
+    srcs, compile_data_new, crate_root = transform_sources(ctx, ctx.files.srcs, ctx.files.compile_data, crate_root)
 
     # Determine unique hash for this rlib.
     # Note that we don't include a hash for `cdylib` and `staticlib` since they are meant to be consumed externally
@@ -197,7 +197,7 @@ def _rust_library_common(ctx, crate_type):
             rustc_env_files = ctx.files.rustc_env_files,
             is_test = False,
             data = depset(ctx.files.data),
-            compile_data = depset(ctx.files.compile_data),
+            compile_data = depset(compile_data_new),
             compile_data_targets = depset(ctx.attr.compile_data),
             owner = ctx.label,
         ),
@@ -224,7 +224,7 @@ def _rust_binary_impl(ctx):
     crate_root = getattr(ctx.file, "crate_root", None)
     if not crate_root:
         crate_root = crate_root_src(ctx.attr.name, ctx.files.srcs, ctx.attr.crate_type)
-    srcs, crate_root = transform_sources(ctx, ctx.files.srcs, crate_root)
+    srcs, compile_data_new, crate_root = transform_sources(ctx, ctx.files.srcs, ctx.files.compile_data, crate_root)
 
     return rustc_compile_action(
         ctx = ctx,
@@ -243,7 +243,7 @@ def _rust_binary_impl(ctx):
             rustc_env = ctx.attr.rustc_env,
             rustc_env_files = ctx.files.rustc_env_files,
             is_test = False,
-            compile_data = depset(ctx.files.compile_data),
+            compile_data = depset(compile_data_new),
             compile_data_targets = depset(ctx.attr.compile_data),
             owner = ctx.label,
         ),
@@ -280,8 +280,6 @@ def _rust_test_impl(ctx):
             ),
         )
 
-        srcs, crate_root = transform_sources(ctx, ctx.files.srcs, getattr(ctx.file, "crate_root", None))
-
         # Optionally join compile data
         if crate.compile_data:
             compile_data = depset(ctx.files.compile_data, transitive = [crate.compile_data])
@@ -292,6 +290,10 @@ def _rust_test_impl(ctx):
         else:
             compile_data_targets = depset(ctx.attr.compile_data)
         rustc_env_files = ctx.files.rustc_env_files + crate.rustc_env_files
+
+        srcs, compile_data_new, crate_root = transform_sources(ctx, ctx.files.srcs, compile_data.to_list(), getattr(ctx.file, "crate_root", None))
+
+        compile_data = depset(compile_data_new)
 
         # crate.rustc_env is already expanded upstream in rust_library rule implementation
         rustc_env = dict(crate.rustc_env)
@@ -327,7 +329,7 @@ def _rust_test_impl(ctx):
         if not crate_root:
             crate_root_type = "lib" if ctx.attr.use_libtest_harness else "bin"
             crate_root = crate_root_src(ctx.attr.name, ctx.files.srcs, crate_root_type)
-        srcs, crate_root = transform_sources(ctx, ctx.files.srcs, crate_root)
+        srcs, compile_data_new, crate_root = transform_sources(ctx, ctx.files.srcs, ctx.files.compile_data, crate_root)
 
         output_hash = determine_output_hash(crate_root, ctx.label)
         output = ctx.actions.declare_file(
@@ -359,7 +361,7 @@ def _rust_test_impl(ctx):
             rustc_env = rustc_env,
             rustc_env_files = ctx.files.rustc_env_files,
             is_test = True,
-            compile_data = depset(ctx.files.compile_data),
+            compile_data = depset(compile_data_new),
             compile_data_targets = depset(ctx.attr.compile_data),
             owner = ctx.label,
         )
